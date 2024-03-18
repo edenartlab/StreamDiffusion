@@ -68,10 +68,16 @@ class PromptUpdater:
         self.current_prompt_encoding  = stream.stream.get_prompt_embeds(self.current_prompt)
 
         self.interpolate_trajectory(self.previous_prompt_encoding, self.current_prompt_encoding)
+
+        # Get abspath of this python file:
+        filepath = os.path.abspath(__file__)
+        # Get the absolute path of the StreamDiffusion root folder:
+        self.root_folder = os.path.dirname(os.path.dirname(os.path.dirname(filepath)))
+        print(f"StreamDiffusion root folder: {self.root_folder}")
+        self.prompt_read_path = os.path.join(self.root_folder, "speech2speech/prompt.txt")
     
     def sync_prompt(self):
-        prompt_txt_path = "/data/xander/Projects/cog/GitHub_repos/StreamDiffusion/speech2speech/prompt.txt"
-        with open(prompt_txt_path, "r") as file:
+        with open(self.prompt_read_path, "r") as file:
             new_prompt = file.read()
 
         prompt_changed = new_prompt != self.current_prompt
