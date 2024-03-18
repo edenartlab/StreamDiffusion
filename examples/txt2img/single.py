@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from typing import Literal, Dict, Optional
 
 import fire
@@ -74,7 +75,14 @@ def main(
     for _ in range(stream.batch_size - 1):
         stream()
 
-    output_image = stream()
+    start_time = time.time()
+    
+    for i in range(100):
+        output_image = stream()
+
+    end_time = time.time()
+    fps = 100 / (end_time - start_time)
+    print(f"FPS: {fps:.2f}")
     output_image.save(output)
 
 

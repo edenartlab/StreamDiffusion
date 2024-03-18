@@ -66,7 +66,8 @@ def image_generation_process(
 
 def main(
     prompt: str = "cat with sunglasses and a hat, photoreal, 8K",
-    model_id_or_path: str = "stabilityai/sd-turbo",
+    #model_id_or_path: str = "stabilityai/sd-turbo",
+    model_id_or_path: str = "KBlueLeaf/kohaku-v2.1",
     acceleration: Literal["none", "xformers", "tensorrt"] = "tensorrt",
 ) -> None:
     """

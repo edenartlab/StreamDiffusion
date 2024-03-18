@@ -10,8 +10,48 @@ from streamdiffusion.image_utils import postprocess_image
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
+def update_image(image_data: Image.Image, label: tk.Label, window_size: tuple) -> None:
+    """
+    Update the image displayed on a Tkinter label.
 
-def update_image(image_data: Image.Image, label: tk.Label) -> None:
+    Parameters
+    ----------
+    image_data : Image.Image
+        The image to be displayed.
+    label : tk.Label
+        The label where the image will be updated.
+    window_size : tuple
+        The size of the window (width, height).
+    """
+    # Resize the image to fit the window size
+    resized_image = image_data.resize(window_size)
+    tk_image = ImageTk.PhotoImage(resized_image)
+    label.configure(image=tk_image)
+    label.image = tk_image  # keep a reference
+
+def on_window_resize(event, queue: Queue, label: tk.Label):
+    """
+    Handle window resize events.
+
+    Parameters
+    ----------
+    event : Event
+        The resize event.
+    queue : Queue
+        The queue containing the latest image.
+    label : tk.Label
+        The label displaying the image.
+    """
+    if not queue.empty():
+        # Update the image with the new window size
+        update_image(
+            postprocess_image(queue.get(block=False), output_type="pil")[0],
+            label,
+            (event.width, event.height)
+        )
+
+
+def update_image_old(image_data: Image.Image, label: tk.Label, width: int = 512, height: int = 512) -> None: 
     """
     Update the image displayed on a Tkinter label.
 
@@ -22,14 +62,12 @@ def update_image(image_data: Image.Image, label: tk.Label) -> None:
     label : tk.Label
         The labels where the image will be updated.
     """
-    width = 512
-    height = 512
     tk_image = ImageTk.PhotoImage(image_data, size=width)
     label.configure(image=tk_image, width=width, height=height)
     label.image = tk_image  # keep a reference
 
 def _receive_images(
-    queue: Queue, fps_queue: Queue, label: tk.Label, fps_label: tk.Label
+    queue: Queue, fps_queue: Queue, label: tk.Label, fps_label: tk.Label, window_size: tuple
 ) -> None:
     """
     Continuously receive images from a queue and update the labels.
@@ -44,6 +82,8 @@ def _receive_images(
         The label to update with images.
     fps_label : tk.Label
         The label to show fps.
+    window_size : tuple
+        The size of the window (width, height).
     """
     while True:
         try:
@@ -53,6 +93,7 @@ def _receive_images(
                     update_image,
                     postprocess_image(queue.get(block=False), output_type="pil")[0],
                     label,
+                    window_size,
                 )
             if not fps_queue.empty():
                 fps_label.config(text=f"FPS: {fps_queue.get(block=False):.2f}")
@@ -61,8 +102,8 @@ def _receive_images(
         except KeyboardInterrupt:
             return
 
-
-def receive_images(queue: Queue, fps_queue: Queue) -> None:
+            
+def receive_images(queue: Queue, fps_queue: Queue, width: int = 512, height: int = 512) -> None:
     """
     Setup the Tkinter window and start the thread to receive images.
 
@@ -75,10 +116,18 @@ def receive_images(queue: Queue, fps_queue: Queue) -> None:
     """
     root = tk.Tk()
     root.title("Image Viewer")
+    #root.attributes('-fullscreen', True)  # Enable full-screen mode
+
     label = tk.Label(root)
     fps_label = tk.Label(root, text="FPS: 0")
-    label.grid(column=0)
-    fps_label.grid(column=1)
+    label.grid(column=0, row=0, sticky='nsew')
+    fps_label.grid(column=1, row=0, sticky='nsew')
+
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
+
+    # Bind the window resize event
+    root.bind('<Configure>', lambda event: on_window_resize(event, queue, label))
 
     def on_closing():
         print("window closed")
@@ -86,7 +135,7 @@ def receive_images(queue: Queue, fps_queue: Queue) -> None:
         return
 
     thread = threading.Thread(
-        target=_receive_images, args=(queue, fps_queue, label, fps_label), daemon=True
+        target=_receive_images, args=(queue, fps_queue, label, fps_label, (width, height)), daemon=True
     )
     thread.start()
 
@@ -95,4 +144,3 @@ def receive_images(queue: Queue, fps_queue: Queue) -> None:
         root.mainloop()
     except KeyboardInterrupt:
         return
-

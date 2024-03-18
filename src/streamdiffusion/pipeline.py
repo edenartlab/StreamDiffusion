@@ -133,6 +133,10 @@ class StreamDiffusion:
     ) -> None:
         self.generator = generator
         self.generator.manual_seed(seed)
+
+        self.fixed_noise = torch.randn((1, 4, self.latent_height, self.latent_width)).to(
+            device=self.device, dtype=self.dtype
+        )
         # initialize x_t_latent (it can be any random tensor)
         if self.denoising_steps_num > 1:
             self.x_t_latent_buffer = torch.zeros(
@@ -250,6 +254,20 @@ class StreamDiffusion:
             repeats=self.frame_bff_size if self.use_denoising_batch else 1,
             dim=0,
         )
+
+    @torch.no_grad()
+    def get_prompt_embeds(self, prompt: str) -> torch.Tensor:
+        encoder_output = self.pipe.encode_prompt(
+            prompt=prompt,
+            device=self.device,
+            num_images_per_prompt=1,
+            do_classifier_free_guidance=False,
+        )
+        return encoder_output[0].repeat(self.batch_size, 1, 1)
+
+    @torch.no_grad()
+    def update_prompt_embeds(self, prompt_embeds: torch.Tensor) -> None:
+        self.prompt_embeds = prompt_embeds
 
     @torch.no_grad()
     def update_prompt(self, prompt: str) -> None:
@@ -466,7 +484,26 @@ class StreamDiffusion:
         torch.cuda.synchronize()
         inference_time = start.elapsed_time(end) / 1000
         self.inference_time_ema = 0.9 * self.inference_time_ema + 0.1 * inference_time
+
+        print(f"Returning x_output of type {type(x_output)} and shape {x_output.shape}")
+        return x_output    
+        
+    @torch.no_grad()
+    def lerp_step(self, batch_size: int = 1, seed: int = -1, noise_inject: float = None) -> torch.Tensor:
+        if seed != -1:
+            torch.manual_seed(seed)
+
+        latent_noise = torch.randn((batch_size, 4, self.latent_height, self.latent_width)).to(
+                device=self.device, dtype=self.dtype
+            )
+
+        if noise_inject is not None:
+            latent_noise = latent_noise * (1-noise_inject) + self.fixed_noise * noise_inject
+
+        x_0_pred_out = self.predict_x0_batch(latent_noise)
+        x_output = self.decode_image(x_0_pred_out).detach().clone()
         return x_output
+
 
     @torch.no_grad()
     def txt2img(self, batch_size: int = 1) -> torch.Tensor:

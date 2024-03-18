@@ -86,6 +86,8 @@ def main(
         num_inference_steps=50,
     )
 
+    print('stream batch size:', stream.batch_size)
+
     video_result = torch.zeros(video.shape[0], height, width, 3)
 
     for _ in range(stream.batch_size):
